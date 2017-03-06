@@ -5,8 +5,11 @@ const EventEmitter = require('events').EventEmitter
 const request = require('request-promise')
 const crypto = require('crypto')
 
+
+
 class Bot extends EventEmitter {
-  constructor (opts) {
+
+  /*constructor (opts) {
     super()
 
     opts = opts || {}
@@ -17,6 +20,30 @@ class Bot extends EventEmitter {
     this.app_secret = opts.app_secret || false
     this.verify_token = opts.verify || false
     this.debug = opts.debug || false
+  }*/
+
+  /**
+   * Accepts an array of bots in the following format:
+   * [
+   *  {
+        name: <display name>,
+        token: <page token>,
+        app_secret: <app secret>
+        verify: <verify token>,
+        recipient_id: <recipient/page id>
+      },
+      ...
+     ]
+   */
+  constructor(bots) {
+    super()
+
+    if (!bots || !_.isArray(bots) || bots.length < 1) {
+      throw new Error("'bots' param must be an array of FB bot configuration objects")
+    }
+
+    // Create an object with the recipient IDs as keys
+    this.bots = _.keyBy(bots, 'recipient_id')
   }
 
   getProfile (id, cb) {
@@ -156,6 +183,7 @@ class Bot extends EventEmitter {
 
       req.on('end', () => {
         // check message integrity
+        /* TODO: implement
         if (this.app_secret) {
           let hmac = crypto.createHmac('sha1', this.app_secret)
           hmac.update(body)
@@ -164,7 +192,7 @@ class Bot extends EventEmitter {
             this.emit('error', new Error('Message integrity check failed'))
             return res.end(JSON.stringify({status: 'not ok', error: 'Message integrity check failed'}))
           }
-        }
+        }*/
 
         let parsed = JSON.parse(body)
         this._handleMessage(parsed)
