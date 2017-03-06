@@ -4,23 +4,10 @@ const qs = require('querystring')
 const EventEmitter = require('events').EventEmitter
 const request = require('request-promise')
 const crypto = require('crypto')
-
+const _ = require('lodash')
 
 
 class Bot extends EventEmitter {
-
-  /*constructor (opts) {
-    super()
-
-    opts = opts || {}
-    if (!opts.token) {
-      throw new Error('Missing page token. See FB documentation for details: https://developers.facebook.com/docs/messenger-platform/quickstart')
-    }
-    this.token = opts.token
-    this.app_secret = opts.app_secret || false
-    this.verify_token = opts.verify || false
-    this.debug = opts.debug || false
-  }*/
 
   /**
    * Accepts an array of bots in the following format:
@@ -46,11 +33,11 @@ class Bot extends EventEmitter {
     this.bots = _.keyBy(bots, 'recipient_id')
   }
 
-  getProfile (id, cb) {
+  getProfile (senderId, recipientId, cb) {
     return request({
       method: 'GET',
-      uri: `https://graph.facebook.com/v2.6/${id}`,
-      qs: this._getQs({fields: 'first_name,last_name,profile_pic,locale,timezone,gender'}),
+      uri: `https://graph.facebook.com/v2.6/${senderId}`,
+      qs: this._getQs(recipientId, {fields: 'first_name,last_name,profile_pic,locale,timezone,gender'}),
       json: true
     })
     .then(body => {
@@ -64,13 +51,13 @@ class Bot extends EventEmitter {
     })
   }
 
-  sendMessage (recipient, payload, cb) {
+  sendMessage (senderId, recipientId, payload, cb) {
     return request({
       method: 'POST',
       uri: 'https://graph.facebook.com/v2.6/me/messages',
-      qs: this._getQs(),
+      qs: this._getQs(recipientId),
       json: {
-        recipient: { id: recipient },
+        recipient: { id: senderId },
         message: payload
       }
     })
@@ -85,14 +72,14 @@ class Bot extends EventEmitter {
     })
   }
 
-  sendSenderAction (recipient, senderAction, cb) {
+  sendSenderAction (senderId, recipientId, senderAction, cb) {
     return request({
       method: 'POST',
       uri: 'https://graph.facebook.com/v2.6/me/messages',
-      qs: this._getQs(),
+      qs: this._getQs(recipientId),
       json: {
         recipient: {
-          id: recipient
+          id: senderId
         },
         sender_action: senderAction
       }
@@ -202,14 +189,25 @@ class Bot extends EventEmitter {
     }
   }
 
-  _getQs (qs) {
+  _getQs (recipientId, qs) {
+    if (!recipientId) {
+      throw new Error("recipientId (page ID) must be provided")
+    }
+
+    if (!this.bots[recipientId]) {
+      throw new Error("Invalid recipient/page ID")
+    }
+
     if (typeof qs === 'undefined') {
       qs = {}
     }
-    qs['access_token'] = this.token
 
-    if (this.debug) {
-      qs['debug'] = this.debug
+    let bot = this.bots[recipientId]
+
+    qs['access_token'] = bot.token
+
+    if (bot.debug) {
+      qs['debug'] = bot.debug
     }
 
     return qs
@@ -289,7 +287,12 @@ class Bot extends EventEmitter {
   }
 
   _handleEvent (type, event) {
-    this.emit(type, event, this.sendMessage.bind(this, event.sender.id), this._getActionsObject(event))
+    this.emit(
+      type,
+      event,
+      this.sendMessage.bind(this, event.sender.id, event.recipient.id),
+      this._getActionsObject(event)
+    )
   }
 }
 
